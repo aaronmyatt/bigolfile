@@ -1,0 +1,83 @@
+# GIVENS.md
+
+How this capabilities folder is laid out. Givens, test runners, people and agents all read the
+same files, so these rules keep them agreeing.
+
+## Layout
+
+```text
+capabilities/
+  GIVENS.md                    # this file
+  .gitattributes               # runs/** merge=union
+  _shared/givens.sh            # the kit, sourced by every setup script
+  _shared/*.sh                 # helpers every capability can call
+  <capability>/
+    <capability>.feature       # strict Gherkin: the story and every scenario
+    about.md                   # optional: diagrams, images, context
+    scripts/<slug>.sh          # setup that runs commands
+    scripts/<slug>.teardown.sh # optional: runs before each setup
+    scripts/<slug>.md          # setup done by hand, shown as cards; "bash run" blocks run
+    _shared/*.sh               # helpers only this capability's scripts can call
+  runs/YYYY-MM-DD.log          # one line per recorded Drop in
+  runs/files/<run key>/<time>/ # files kept with a run, like a screenshot
+  runs/off-main.md             # left once runs moved to the git ref refs/givens/runs
+```
+
+## Rules
+
+- A capability is a folder holding exactly one `.feature` file, named after the folder.
+  A folder with no `.feature` file isn't a capability; Givens leaves it alone.
+- The Feature's description holds the story: an `As a`, an `I want` and a `So that` line.
+  Descriptions are plain text; a line starting with `#` is a Gherkin comment.
+- Tags: `@error` marks an error state (untagged is a happy path). `@timeout:5m` sets when to
+  show "Still running" (default 2 minutes). `@todo` flags a scenario that needs work, marked
+  ⚑ in the list; a new scenario starts with it. Any other tag, `@todo` included, is a view.
+  A tag on `Feature:` applies to every scenario in the file.
+- A slug is a name in lower case; letters and digits in any language are kept; every run of
+  other characters becomes one hyphen; hyphens are trimmed from the ends.
+  `Card declined` gives `card-declined`.
+- Scenario names must make different slugs within a file, `Rule:` blocks included.
+- A scenario's setup is `scripts/<slug>.sh`, `scripts/<slug>.md`, or both (script first).
+  Setup should be idempotent: running it twice leaves the same state as once.
+- In `scripts/<slug>.md`, a code block whose info string is `bash run` runs by itself, with
+  the kit loaded, and one that is `js run` runs in the Givens browser; the card is done when
+  it exits with 0. Any other card waits for the developer. A run block is code, so it's
+  asked about as a script is.
+- The Givens browser is Chrome with a profile of Givens's own for the project. The kit's
+  `browser_open`, `in_browser` and `app_action` drive it, and it stays open after setup, so
+  the When steps are done in it. `app_action <name>` calls `window.app.<name>`, which the app
+  sets in its dev builds.
+- A run is recorded against `<capability>/<scenario slug>`, plus `/<examples slug>` for a named
+  Examples block. Renaming a scenario starts its runs over.
+- In a git repository with an `origin` remote, runs are kept off main: Givens keeps the run log
+  and its files in the git ref `refs/givens/runs`, which it fetches and pushes itself, and
+  `runs/` only holds runs from before. The ref keeps the newest runs only: its `limits` file
+  says how many runs and MB (1000 and 250). Without a remote, runs go in `runs/`.
+- Step definitions belong to the project's test runner, not to Givens. They may live in the
+  capability folders (e.g. `checkout/steps/`).
+
+## Glossary
+
+| Term | Meaning |
+| --- | --- |
+| Capability | One thing the app does. A folder holding one `.feature` file. |
+| Story | The As a, I want and So that lines in the Feature's description. |
+| Scenario | One behaviour, written as Given, When and Then steps. |
+| Happy path / error state | A scenario where things go as hoped / where something goes wrong (`@error`). |
+| Outline, row | A `Scenario Outline:` runs once per row of its Examples table. |
+| Slug | A name in lower case with hyphens. Names files and run keys. |
+| Setup, teardown | Scripts that put the app into, or clear it out of, a scenario's starting state. |
+| Helper | A shell function in a `_shared/` folder that setup scripts call. |
+| Kit | `_shared/givens.sh`, sourced by every setup script. |
+| Drop in | Run a scenario's setup, then walk its steps as a checklist. |
+| Run, verified | A recorded Drop in; verified while its latest run passed and its setup is unchanged. |
+| Fingerprint | A code worked out from a scenario's steps, setup and helpers. A change unverifies it. |
+
+## This repository
+
+These capabilities are the spec of the one-big-file workflow (One Big File: A Scenario-Driven
+Workflow, Oct 24, 2026), rewritten after moving all of Givens into it and then folding its
+12 domain packages in: `internal/app/big.go`, `big_helpers.go`, `scripts/entry.sh` and
+`TestBigFile`, notes in Givens's `tasks/one-big-file/notes.md`.
+Untagged scenarios are what that work built and checked. `@todo` marks the rest: not tried
+yet, or not true of Givens yet; a `#` comment above each says which.
